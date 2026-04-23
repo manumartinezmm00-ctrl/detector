@@ -124,11 +124,12 @@ h1{
 
 const URL = "https://raw.githubusercontent.com/manumartinezmm00-ctrl/detector/main/data.txt";
 
-let ultimaLinea = "";
+let ultimaLinea = null;
 
 // 🔔 TOAST
-function showToast(){
+function showToast(msg="Nuevo dato"){
   const toast = document.getElementById("toast");
+  toast.innerText = msg;
   toast.classList.add("show");
 
   setTimeout(()=>{
@@ -141,13 +142,27 @@ async function cargarDatos(){
 
   try{
 
-    const res = await fetch(URL + "?t=" + Date.now());
+    // 🔥 fetch SIN cache real
+    const res = await fetch(URL, {
+      cache: "no-store"
+    });
+
     const text = await res.text();
+
+    if(!text) return;
 
     const lineas = text.trim().split("\n");
     if(lineas.length === 0) return;
 
-    let actual = lineas[lineas.length-1];
+    let actual = lineas[lineas.length-1].trim();
+
+    // 🔴 SI NO CAMBIÓ → NO HACER NADA
+    if(actual === ultimaLinea){
+      return;
+    }
+
+    // ✅ NUEVO DATO REAL
+    ultimaLinea = actual;
 
     let temps = [];
     let hums = [];
@@ -162,32 +177,27 @@ async function cargarDatos(){
       }
     });
 
+    if(temps.length === 0) return;
+
     let temp = temps.at(-1);
     let hum = hums.at(-1);
 
-    let nuevo = actual !== ultimaLinea;
+    // 🔊 sonido SOLO si hay dato nuevo
+    document.getElementById("beep").play().catch(()=>{});
 
-    if(nuevo){
+    // ✨ animación
+    document.getElementById("temp").classList.add("updated");
+    document.getElementById("hum").classList.add("updated");
 
-      // 🔊 sonido
-      document.getElementById("beep").play().catch(()=>{});
+    setTimeout(()=>{
+      document.getElementById("temp").classList.remove("updated");
+      document.getElementById("hum").classList.remove("updated");
+    }, 300);
 
-      // 🔥 animación números
-      document.getElementById("temp").classList.add("updated");
-      document.getElementById("hum").classList.add("updated");
+    // 🔔 toast SOLO cuando cambia
+    showToast("Nuevo dato recibido");
 
-      setTimeout(()=>{
-        document.getElementById("temp").classList.remove("updated");
-        document.getElementById("hum").classList.remove("updated");
-      }, 300);
-
-      // 🔔 toast
-      showToast();
-
-      ultimaLinea = actual;
-    }
-
-    // UI
+    // ===== UI =====
     document.getElementById("temp").innerText = temp + " °C";
     document.getElementById("hum").innerText = hum + " %";
     document.getElementById("bar").style.width = hum + "%";
@@ -207,12 +217,14 @@ async function cargarDatos(){
     document.getElementById("last").innerText = actual;
 
   }catch(e){
-    console.error(e);
+    console.error("Error real:", e);
   }
 }
 
 // 🔁 LOOP
 setInterval(cargarDatos, 5000);
+
+// primera carga
 cargarDatos();
 
 </script>
