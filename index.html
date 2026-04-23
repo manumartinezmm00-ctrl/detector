@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard ESP32</title>
+
+<style>
+body{
+  background:#0f172a;
+  color:white;
+  font-family:Arial;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+
+.container{
+  width:400px;
+  background:#1e293b;
+  padding:20px;
+  border-radius:15px;
+  box-shadow:0 0 20px rgba(0,0,0,0.5);
+}
+
+h1{
+  text-align:center;
+  margin-bottom:20px;
+}
+
+.card{
+  background:#0f172a;
+  padding:15px;
+  margin:10px 0;
+  border-radius:10px;
+  text-align:center;
+}
+
+.big{
+  font-size:40px;
+}
+
+.small{
+  font-size:14px;
+  opacity:0.7;
+}
+
+.bar{
+  height:10px;
+  background:#334155;
+  border-radius:10px;
+  overflow:hidden;
+}
+
+.fill{
+  height:100%;
+  background:#22c55e;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h1>🌡️ ESP32</h1>
+
+  <div class="card">
+    <div class="big" id="temp">-- °C</div>
+    <div class="small">Temperatura</div>
+  </div>
+
+  <div class="card">
+    <div class="big" id="hum">-- %</div>
+    <div class="small">Humedad</div>
+    <div class="bar"><div class="fill" id="bar"></div></div>
+  </div>
+
+  <div class="card">
+    <div id="clima">--</div>
+  </div>
+
+  <div class="card">
+    <div class="small">Promedio</div>
+    <div id="avg">--</div>
+  </div>
+
+  <div class="card">
+    <div class="small">Máx / Mín</div>
+    <div id="maxmin">--</div>
+  </div>
+
+  <div class="card">
+    <div class="small">Última lectura</div>
+    <div id="last">--</div>
+  </div>
+
+</div>
+
+<script>
+
+const URL = "https://raw.githubusercontent.com/manumartinezmm00-ctrl/detector/main/data.txt";
+
+async function cargarDatos(){
+
+  try{
+    const res = await fetch(URL);
+    const text = await res.text();
+
+    const lineas = text.trim().split("\n");
+
+    let temps = [];
+    let hums = [];
+
+    lineas.forEach(l=>{
+      let t = l.match(/Temp:(\d+(\.\d+)?)/);
+      let h = l.match(/Hum:(\d+)/);
+
+      if(t && h){
+        temps.push(parseFloat(t[1]));
+        hums.push(parseInt(h[1]));
+      }
+    });
+
+    if(temps.length === 0) return;
+
+    let ultimaTemp = temps[temps.length-1];
+    let ultimaHum = hums[hums.length-1];
+
+    // ===== UI =====
+    document.getElementById("temp").innerText = ultimaTemp + " °C";
+    document.getElementById("hum").innerText = ultimaHum + " %";
+
+    // barra
+    document.getElementById("bar").style.width = ultimaHum + "%";
+
+    // clima
+    let clima = "Normal";
+    if(ultimaTemp < 20) clima = "Frío ❄️";
+    else if(ultimaTemp > 28) clima = "Calor 🔥";
+
+    document.getElementById("clima").innerText = clima;
+
+    // promedio
+    let avg = temps.reduce((a,b)=>a+b,0)/temps.length;
+    document.getElementById("avg").innerText = avg.toFixed(1) + " °C";
+
+    // max min
+    let max = Math.max(...temps);
+    let min = Math.min(...temps);
+
+    document.getElementById("maxmin").innerText = max + " / " + min;
+
+    // última fecha
+    document.getElementById("last").innerText = lineas[lineas.length-1];
+
+  }catch(e){
+    console.error(e);
+  }
+}
+
+// actualizar cada 5s
+setInterval(cargarDatos, 5000);
+cargarDatos();
+
+</script>
+
+</body>
+</html>
