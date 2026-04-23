@@ -2,12 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Dashboard ESP32</title>
+<title>ESP32 Dashboard</title>
 
 <style>
 body{
-  background:#0f172a;
-  color:white;
+  background:#020617;
+  color:#e2e8f0;
   font-family:Arial;
   display:flex;
   justify-content:center;
@@ -17,10 +17,10 @@ body{
 
 .container{
   width:420px;
-  background:#1e293b;
+  background:#0f172a;
   padding:20px;
   border-radius:15px;
-  box-shadow:0 0 25px rgba(0,0,0,0.6);
+  box-shadow:0 0 30px rgba(0,0,0,0.8);
 }
 
 h1{
@@ -29,7 +29,7 @@ h1{
 }
 
 .card{
-  background:#0f172a;
+  background:#020617;
   padding:15px;
   margin:10px 0;
   border-radius:10px;
@@ -37,18 +37,13 @@ h1{
 }
 
 .big{
-  font-size:40px;
-  transition: transform .2s ease, color .2s ease;
-}
-
-.small{
-  font-size:14px;
-  opacity:0.7;
+  font-size:42px;
+  transition: all .2s ease;
 }
 
 .bar{
   height:10px;
-  background:#334155;
+  background:#1e293b;
   border-radius:10px;
   overflow:hidden;
   margin-top:5px;
@@ -56,78 +51,73 @@ h1{
 
 .fill{
   height:100%;
-  background:#22c55e;
-  transition: width .4s ease;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  transition: width .5s ease;
 }
 
-/* animación cuando cambia */
+/* 🔥 TOAST */
+.toast{
+  position:fixed;
+  top:20px;
+  left:50%;
+  transform:translateX(-50%) translateY(-50px);
+  background:#22c55e;
+  color:black;
+  padding:10px 20px;
+  border-radius:10px;
+  font-weight:bold;
+  opacity:0;
+  transition:.4s;
+  z-index:999;
+}
+
+.toast.show{
+  transform:translateX(-50%) translateY(0);
+  opacity:1;
+}
+
+/* animación datos */
 .updated{
-  animation: flash 0.5s ease;
-}
-
-@keyframes flash{
-  0%{color:#22c55e; transform:scale(1.12);}
-  100%{color:white; transform:scale(1);}
-}
-
-.badge{
-  display:inline-block;
-  padding:3px 8px;
-  border-radius:8px;
-  font-size:12px;
-  background:#22c55e;
-  margin-left:8px;
-}
-
-.status{
-  text-align:center;
-  margin-top:10px;
-  font-size:12px;
-  opacity:0.7;
+  transform:scale(1.15);
+  color:#22c55e;
 }
 </style>
 </head>
 
 <body>
 
+<div class="toast" id="toast">🔄 Actualizado</div>
+
 <div class="container">
   <h1>🌡️ ESP32</h1>
 
   <div class="card">
     <div class="big" id="temp">-- °C</div>
-    <div class="small">Temperatura</div>
   </div>
 
   <div class="card">
     <div class="big" id="hum">-- %</div>
-    <div class="small">Humedad</div>
     <div class="bar"><div class="fill" id="bar"></div></div>
   </div>
 
-  <div class="card">
-    <div id="clima">--</div>
-  </div>
+  <div class="card" id="clima">--</div>
 
   <div class="card">
-    <div class="small">Promedio</div>
     <div id="avg">--</div>
   </div>
 
   <div class="card">
-    <div class="small">Máx / Mín</div>
     <div id="maxmin">--</div>
   </div>
 
   <div class="card">
-    <div class="small">Última lectura</div>
     <div id="last">--</div>
   </div>
-
 </div>
 
 <!-- sonido -->
 <audio id="beep">
-  <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+  <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg">
 </audio>
 
 <script>
@@ -135,26 +125,21 @@ h1{
 const URL = "https://raw.githubusercontent.com/manumartinezmm00-ctrl/detector/main/data.txt";
 
 let ultimaLinea = "";
-let lastUpdateTime = null;
 
-// ===== STATUS UI =====
-const status = document.createElement("div");
-status.className = "status";
-document.querySelector(".container").appendChild(status);
+// 🔔 TOAST
+function showToast(){
+  const toast = document.getElementById("toast");
+  toast.classList.add("show");
 
-// ===== TIEMPO RELATIVO =====
-function tiempoRelativo(){
-  if(!lastUpdateTime) return "--";
-  let diff = Math.floor((Date.now() - lastUpdateTime)/1000);
-  return diff + "s";
+  setTimeout(()=>{
+    toast.classList.remove("show");
+  }, 2000);
 }
 
-// ===== CARGAR DATOS =====
+// 📡 CARGAR
 async function cargarDatos(){
 
   try{
-
-    status.innerText = "Actualizando...";
 
     const res = await fetch(URL + "?t=" + Date.now());
     const text = await res.text();
@@ -162,7 +147,7 @@ async function cargarDatos(){
     const lineas = text.trim().split("\n");
     if(lineas.length === 0) return;
 
-    let lineaActual = lineas[lineas.length-1];
+    let actual = lineas[lineas.length-1];
 
     let temps = [];
     let hums = [];
@@ -177,65 +162,57 @@ async function cargarDatos(){
       }
     });
 
-    if(temps.length === 0) return;
+    let temp = temps.at(-1);
+    let hum = hums.at(-1);
 
-    let ultimaTemp = temps[temps.length-1];
-    let ultimaHum = hums[hums.length-1];
-
-    // ===== DETECTAR NUEVO =====
-    let nuevo = lineaActual !== ultimaLinea;
+    let nuevo = actual !== ultimaLinea;
 
     if(nuevo){
+
+      // 🔊 sonido
       document.getElementById("beep").play().catch(()=>{});
 
+      // 🔥 animación números
       document.getElementById("temp").classList.add("updated");
       document.getElementById("hum").classList.add("updated");
 
       setTimeout(()=>{
         document.getElementById("temp").classList.remove("updated");
         document.getElementById("hum").classList.remove("updated");
-      }, 500);
+      }, 300);
 
-      lastUpdateTime = Date.now();
-      ultimaLinea = lineaActual;
+      // 🔔 toast
+      showToast();
+
+      ultimaLinea = actual;
     }
 
-    // ===== UI =====
-    document.getElementById("temp").innerText = ultimaTemp + " °C";
-    document.getElementById("hum").innerText = ultimaHum + " %";
-
-    document.getElementById("bar").style.width = ultimaHum + "%";
+    // UI
+    document.getElementById("temp").innerText = temp + " °C";
+    document.getElementById("hum").innerText = hum + " %";
+    document.getElementById("bar").style.width = hum + "%";
 
     let clima = "Normal";
-    if(ultimaTemp < 20) clima = "Frío ❄️";
-    else if(ultimaTemp > 28) clima = "Calor 🔥";
+    if(temp < 20) clima = "Frío ❄️";
+    else if(temp > 28) clima = "Calor 🔥";
 
-    document.getElementById("clima").innerHTML =
-      clima + (nuevo ? ' <span class="badge">NEW</span>' : '');
+    document.getElementById("clima").innerText = clima;
 
     let avg = temps.reduce((a,b)=>a+b,0)/temps.length;
-    document.getElementById("avg").innerText = avg.toFixed(1) + " °C";
+    document.getElementById("avg").innerText = "Prom: " + avg.toFixed(1);
 
-    let max = Math.max(...temps);
-    let min = Math.min(...temps);
+    document.getElementById("maxmin").innerText =
+      "Max: " + Math.max(...temps) + " / Min: " + Math.min(...temps);
 
-    document.getElementById("maxmin").innerText = max + " / " + min;
-
-    document.getElementById("last").innerText = lineaActual;
-
-    status.innerText = "Actualizado hace " + tiempoRelativo();
+    document.getElementById("last").innerText = actual;
 
   }catch(e){
     console.error(e);
-    status.innerText = "Error cargando datos";
   }
 }
 
-// ===== LOOP =====
-setInterval(()=>{
-  cargarDatos();
-}, 5000);
-
+// 🔁 LOOP
+setInterval(cargarDatos, 5000);
 cargarDatos();
 
 </script>
