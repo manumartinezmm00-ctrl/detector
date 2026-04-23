@@ -2,73 +2,112 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>ESP32 Dashboard</title>
+<title>ESP32 Dashboard PRO</title>
 
 <style>
+
+/* ===== VARIABLES ===== */
+:root{
+  --bg:#020617;
+  --card:#0f172a;
+  --text:#e2e8f0;
+  --accent:#22c55e;
+}
+
+.light{
+  --bg:#f1f5f9;
+  --card:#ffffff;
+  --text:#0f172a;
+}
+
+/* ===== GENERAL ===== */
 body{
-  background:#020617;
-  color:#e2e8f0;
+  background:var(--bg);
+  color:var(--text);
   font-family:Arial;
   display:flex;
   justify-content:center;
-  align-items:center;
-  height:100vh;
+  padding:20px;
+  transition:.3s;
 }
 
 .container{
-  width:420px;
-  background:#0f172a;
-  padding:20px;
-  border-radius:15px;
-  box-shadow:0 0 30px rgba(0,0,0,0.8);
+  width:500px;
 }
 
-h1{
-  text-align:center;
-  margin-bottom:20px;
+/* ===== HEADER ===== */
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
 }
 
+button{
+  border:none;
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  background:var(--accent);
+  color:black;
+}
+
+/* ===== CARDS ===== */
 .card{
-  background:#020617;
+  background:var(--card);
   padding:15px;
   margin:10px 0;
-  border-radius:10px;
+  border-radius:12px;
+  box-shadow:0 5px 15px rgba(0,0,0,0.2);
   text-align:center;
 }
 
 .big{
   font-size:42px;
-  transition: all .2s ease;
 }
 
 .bar{
   height:10px;
-  background:#1e293b;
+  background:#ccc;
   border-radius:10px;
   overflow:hidden;
-  margin-top:5px;
 }
 
 .fill{
   height:100%;
-  background:linear-gradient(90deg,#22c55e,#4ade80);
-  transition: width .5s ease;
+  background:var(--accent);
 }
 
-/* 🔥 TOAST */
+/* ===== GRID STATS ===== */
+.stats{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  font-size:14px;
+}
+
+/* ===== TABLE ===== */
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+th,td{
+  padding:6px;
+  border-bottom:1px solid #ccc;
+}
+
+/* ===== TOAST ===== */
 .toast{
   position:fixed;
   top:20px;
   left:50%;
   transform:translateX(-50%) translateY(-50px);
-  background:#22c55e;
+  background:var(--accent);
   color:black;
-  padding:10px 20px;
+  padding:10px;
   border-radius:10px;
-  font-weight:bold;
   opacity:0;
-  transition:.4s;
-  z-index:999;
+  transition:.3s;
 }
 
 .toast.show{
@@ -76,46 +115,47 @@ h1{
   opacity:1;
 }
 
-/* animación datos */
-.updated{
-  transform:scale(1.15);
-  color:#22c55e;
-}
 </style>
 </head>
 
 <body>
 
-<div class="toast" id="toast">🔄 Actualizado</div>
+<div class="toast" id="toast">Nuevo dato</div>
 
 <div class="container">
-  <h1>🌡️ ESP32</h1>
 
-  <div class="card">
-    <div class="big" id="temp">-- °C</div>
-  </div>
-
-  <div class="card">
-    <div class="big" id="hum">-- %</div>
-    <div class="bar"><div class="fill" id="bar"></div></div>
-  </div>
-
-  <div class="card" id="clima">--</div>
-
-  <div class="card">
-    <div id="avg">--</div>
-  </div>
-
-  <div class="card">
-    <div id="maxmin">--</div>
-  </div>
-
-  <div class="card">
-    <div id="last">--</div>
-  </div>
+<div class="header">
+  <h2>🌡️ ESP32</h2>
+  <button onclick="toggleMode()">🌗</button>
 </div>
 
-<!-- sonido -->
+<div class="card">
+  <div class="big" id="temp">--</div>
+  <small>Temperatura</small>
+</div>
+
+<div class="card">
+  <div class="big" id="hum">--</div>
+  <div class="bar"><div class="fill" id="bar"></div></div>
+</div>
+
+<div class="card" id="clima">--</div>
+
+<div class="card stats" id="stats"></div>
+
+<div class="card">
+  <b>Historial</b>
+  <table id="tabla">
+    <tr><th>Temp</th><th>Hum</th></tr>
+  </table>
+</div>
+
+<div class="card">
+  <button onclick="borrarDatos()">🗑️ Limpiar datos</button>
+</div>
+
+</div>
+
 <audio id="beep">
   <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg">
 </audio>
@@ -124,107 +164,107 @@ h1{
 
 const URL = "https://raw.githubusercontent.com/manumartinezmm00-ctrl/detector/main/data.txt";
 
-let ultimaLinea = null;
+let ultimaLinea=null;
+let datos = JSON.parse(localStorage.getItem("datos")) || [];
 
-// 🔔 TOAST
-function showToast(msg="Nuevo dato"){
-  const toast = document.getElementById("toast");
-  toast.innerText = msg;
-  toast.classList.add("show");
-
-  setTimeout(()=>{
-    toast.classList.remove("show");
-  }, 2000);
+// ===== MODO =====
+function toggleMode(){
+  document.body.classList.toggle("light");
 }
 
-// 📡 CARGAR
+// ===== TOAST =====
+function toast(){
+  const t = document.getElementById("toast");
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2000);
+}
+
+// ===== BORRAR =====
+function borrarDatos(){
+  datos=[];
+  localStorage.removeItem("datos");
+  actualizarTabla();
+}
+
+// ===== TABLA =====
+function actualizarTabla(){
+  let tabla = document.getElementById("tabla");
+  tabla.innerHTML = "<tr><th>Temp</th><th>Hum</th></tr>";
+
+  datos.slice(-10).reverse().forEach(d=>{
+    tabla.innerHTML += `<tr>
+      <td>${d.temp}</td>
+      <td>${d.hum}</td>
+    </tr>`;
+  });
+}
+
+// ===== STATS =====
+function stats(){
+
+  let temps = datos.map(d=>d.temp);
+  if(temps.length===0) return;
+
+  let avg = temps.reduce((a,b)=>a+b,0)/temps.length;
+  let max = Math.max(...temps);
+  let min = Math.min(...temps);
+
+  document.getElementById("stats").innerHTML = `
+    <div>Prom: ${avg.toFixed(1)}</div>
+    <div>Max: ${max}</div>
+    <div>Min: ${min}</div>
+    <div>Total: ${temps.length}</div>
+  `;
+}
+
+// ===== CARGAR =====
 async function cargarDatos(){
 
   try{
 
-    // 🔥 fetch SIN cache real
-    const res = await fetch(URL, {
-      cache: "no-store"
-    });
-
+    const res = await fetch(URL, {cache:"no-store"});
     const text = await res.text();
 
-    if(!text) return;
+    let lineas = text.trim().split("\n");
+    let actual = lineas.at(-1);
 
-    const lineas = text.trim().split("\n");
-    if(lineas.length === 0) return;
+    if(actual === ultimaLinea) return;
 
-    let actual = lineas[lineas.length-1].trim();
-
-    // 🔴 SI NO CAMBIÓ → NO HACER NADA
-    if(actual === ultimaLinea){
-      return;
-    }
-
-    // ✅ NUEVO DATO REAL
     ultimaLinea = actual;
 
-    let temps = [];
-    let hums = [];
+    let t = actual.match(/Temp:(\d+(\.\d+)?)/);
+    let h = actual.match(/Hum:(\d+)/);
 
-    lineas.forEach(l=>{
-      let t = l.match(/Temp:(\d+(\.\d+)?)/);
-      let h = l.match(/Hum:(\d+)/);
+    if(!t || !h) return;
 
-      if(t && h){
-        temps.push(parseFloat(t[1]));
-        hums.push(parseInt(h[1]));
-      }
-    });
+    let temp = parseFloat(t[1]);
+    let hum = parseInt(h[1]);
 
-    if(temps.length === 0) return;
+    datos.push({temp, hum});
+    localStorage.setItem("datos", JSON.stringify(datos));
 
-    let temp = temps.at(-1);
-    let hum = hums.at(-1);
-
-    // 🔊 sonido SOLO si hay dato nuevo
-    document.getElementById("beep").play().catch(()=>{});
-
-    // ✨ animación
-    document.getElementById("temp").classList.add("updated");
-    document.getElementById("hum").classList.add("updated");
-
-    setTimeout(()=>{
-      document.getElementById("temp").classList.remove("updated");
-      document.getElementById("hum").classList.remove("updated");
-    }, 300);
-
-    // 🔔 toast SOLO cuando cambia
-    showToast("Nuevo dato recibido");
-
-    // ===== UI =====
     document.getElementById("temp").innerText = temp + " °C";
     document.getElementById("hum").innerText = hum + " %";
     document.getElementById("bar").style.width = hum + "%";
 
-    let clima = "Normal";
-    if(temp < 20) clima = "Frío ❄️";
-    else if(temp > 28) clima = "Calor 🔥";
+    let clima="Normal";
+    if(temp<20) clima="Frío ❄️";
+    else if(temp>28) clima="Calor 🔥";
 
     document.getElementById("clima").innerText = clima;
 
-    let avg = temps.reduce((a,b)=>a+b,0)/temps.length;
-    document.getElementById("avg").innerText = "Prom: " + avg.toFixed(1);
+    stats();
+    actualizarTabla();
 
-    document.getElementById("maxmin").innerText =
-      "Max: " + Math.max(...temps) + " / Min: " + Math.min(...temps);
-
-    document.getElementById("last").innerText = actual;
+    document.getElementById("beep").play().catch(()=>{});
+    toast();
 
   }catch(e){
-    console.error("Error real:", e);
+    console.error(e);
   }
 }
 
-// 🔁 LOOP
-setInterval(cargarDatos, 5000);
-
-// primera carga
+setInterval(cargarDatos,5000);
 cargarDatos();
 
 </script>
