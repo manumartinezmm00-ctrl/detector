@@ -16,11 +16,11 @@ body{
 }
 
 .container{
-  width:400px;
+  width:420px;
   background:#1e293b;
   padding:20px;
   border-radius:15px;
-  box-shadow:0 0 20px rgba(0,0,0,0.5);
+  box-shadow:0 0 25px rgba(0,0,0,0.6);
 }
 
 h1{
@@ -38,6 +38,7 @@ h1{
 
 .big{
   font-size:40px;
+  transition: transform .2s ease, color .2s ease;
 }
 
 .small{
@@ -50,11 +51,39 @@ h1{
   background:#334155;
   border-radius:10px;
   overflow:hidden;
+  margin-top:5px;
 }
 
 .fill{
   height:100%;
   background:#22c55e;
+  transition: width .4s ease;
+}
+
+/* animación cuando cambia */
+.updated{
+  animation: flash 0.5s ease;
+}
+
+@keyframes flash{
+  0%{color:#22c55e; transform:scale(1.12);}
+  100%{color:white; transform:scale(1);}
+}
+
+.badge{
+  display:inline-block;
+  padding:3px 8px;
+  border-radius:8px;
+  font-size:12px;
+  background:#22c55e;
+  margin-left:8px;
+}
+
+.status{
+  text-align:center;
+  margin-top:10px;
+  font-size:12px;
+  opacity:0.7;
 }
 </style>
 </head>
@@ -96,17 +125,44 @@ h1{
 
 </div>
 
+<!-- sonido -->
+<audio id="beep">
+  <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+</audio>
+
 <script>
 
 const URL = "https://raw.githubusercontent.com/manumartinezmm00-ctrl/detector/main/data.txt";
 
+let ultimaLinea = "";
+let lastUpdateTime = null;
+
+// ===== STATUS UI =====
+const status = document.createElement("div");
+status.className = "status";
+document.querySelector(".container").appendChild(status);
+
+// ===== TIEMPO RELATIVO =====
+function tiempoRelativo(){
+  if(!lastUpdateTime) return "--";
+  let diff = Math.floor((Date.now() - lastUpdateTime)/1000);
+  return diff + "s";
+}
+
+// ===== CARGAR DATOS =====
 async function cargarDatos(){
 
   try{
-    const res = await fetch(URL);
+
+    status.innerText = "Actualizando...";
+
+    const res = await fetch(URL + "?t=" + Date.now());
     const text = await res.text();
 
     const lineas = text.trim().split("\n");
+    if(lineas.length === 0) return;
+
+    let lineaActual = lineas[lineas.length-1];
 
     let temps = [];
     let hums = [];
@@ -126,40 +182,60 @@ async function cargarDatos(){
     let ultimaTemp = temps[temps.length-1];
     let ultimaHum = hums[hums.length-1];
 
+    // ===== DETECTAR NUEVO =====
+    let nuevo = lineaActual !== ultimaLinea;
+
+    if(nuevo){
+      document.getElementById("beep").play().catch(()=>{});
+
+      document.getElementById("temp").classList.add("updated");
+      document.getElementById("hum").classList.add("updated");
+
+      setTimeout(()=>{
+        document.getElementById("temp").classList.remove("updated");
+        document.getElementById("hum").classList.remove("updated");
+      }, 500);
+
+      lastUpdateTime = Date.now();
+      ultimaLinea = lineaActual;
+    }
+
     // ===== UI =====
     document.getElementById("temp").innerText = ultimaTemp + " °C";
     document.getElementById("hum").innerText = ultimaHum + " %";
 
-    // barra
     document.getElementById("bar").style.width = ultimaHum + "%";
 
-    // clima
     let clima = "Normal";
     if(ultimaTemp < 20) clima = "Frío ❄️";
     else if(ultimaTemp > 28) clima = "Calor 🔥";
 
-    document.getElementById("clima").innerText = clima;
+    document.getElementById("clima").innerHTML =
+      clima + (nuevo ? ' <span class="badge">NEW</span>' : '');
 
-    // promedio
     let avg = temps.reduce((a,b)=>a+b,0)/temps.length;
     document.getElementById("avg").innerText = avg.toFixed(1) + " °C";
 
-    // max min
     let max = Math.max(...temps);
     let min = Math.min(...temps);
 
     document.getElementById("maxmin").innerText = max + " / " + min;
 
-    // última fecha
-    document.getElementById("last").innerText = lineas[lineas.length-1];
+    document.getElementById("last").innerText = lineaActual;
+
+    status.innerText = "Actualizado hace " + tiempoRelativo();
 
   }catch(e){
     console.error(e);
+    status.innerText = "Error cargando datos";
   }
 }
 
-// actualizar cada 5s
-setInterval(cargarDatos, 5000);
+// ===== LOOP =====
+setInterval(()=>{
+  cargarDatos();
+}, 5000);
+
 cargarDatos();
 
 </script>
